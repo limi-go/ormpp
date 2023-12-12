@@ -38,6 +38,7 @@ REGISTER_TYPE(int, MYSQL_TYPE_LONG)
 REGISTER_TYPE(float, MYSQL_TYPE_FLOAT)
 REGISTER_TYPE(double, MYSQL_TYPE_DOUBLE)
 REGISTER_TYPE(int64_t, MYSQL_TYPE_LONGLONG)
+REGISTER_TYPE(std::chrono::system_clock::time_point, MYSQL_TYPE_DATETIME)
 
 using blob = std::vector<char>;
 
@@ -67,6 +68,9 @@ inline constexpr auto type_to_name(identity<double>) noexcept {
 }
 inline constexpr auto type_to_name(identity<int64_t>) noexcept {
   return "BIGINT"sv;
+}
+inline constexpr auto type_to_name(identity<std::chrono::time_point<std::chrono::system_clock>>) noexcept {
+    return "DATETIME(6)"sv;
 }
 inline constexpr auto type_to_name(identity<blob>) noexcept { return "BLOB"sv; }
 inline auto type_to_name(identity<std::string>) noexcept { return "TEXT"sv; }
@@ -109,6 +113,9 @@ inline constexpr auto type_to_name(identity<double>) noexcept {
 }
 inline constexpr auto type_to_name(identity<int64_t>) noexcept {
   return "INTEGER"sv;
+}
+inline constexpr auto type_to_name(identity<std::chrono::system_clock::time_point>) noexcept {
+    return "INTEGER"sv;
 }
 inline auto type_to_name(identity<std::string>) noexcept { return "TEXT"sv; }
 template <size_t N>

@@ -12,6 +12,9 @@
 #include "postgresql.hpp"
 #endif
 
+#include <format>
+#include <chrono>
+
 #include "connection_pool.hpp"
 #include "dbng.hpp"
 #include "doctest.h"
@@ -33,9 +36,10 @@ struct person {
   std::string name;
   int age;
   int id;
+  std::chrono::system_clock::time_point birthday; 
 };
 REGISTER_AUTO_KEY(person, id)
-REFLECTION(person, id, name, age)
+REFLECTION(person, id, name, age,birthday)
 
 struct student {
   int code;

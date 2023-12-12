@@ -11,7 +11,8 @@
 #endif
 
 #include <iostream>
-
+#include <format>
+#include <chrono>
 #include "connection_pool.hpp"
 #include "dbng.hpp"
 
@@ -25,17 +26,19 @@ struct person {
   std::optional<std::string> name;
   std::optional<int> age;
   int id;
+  std::chrono::system_clock::time_point birthday; 
 };
 REGISTER_AUTO_KEY(person, id)
-REFLECTION(person, id, name, age)
+REFLECTION(person, id, name, age, birthday)
 
 struct student {
   std::string name;
   int age;
   int id;
+  std::chrono::system_clock::time_point birthday; 
 };
 REGISTER_AUTO_KEY(student, id)
-REFLECTION_WITH_NAME(student, "t_student", id, name, age)
+REFLECTION_WITH_NAME(student, "t_student", id, name, age,birthday)
 
 int main() {
 #ifdef ORMPP_ENABLE_MYSQL
@@ -45,7 +48,7 @@ int main() {
       mysql.create_datatable<person>(ormpp_auto_key{"id"});
       mysql.delete_records<person>();
       mysql.insert<person>({"purecpp"});
-      mysql.insert<person>({"purecpp", 6});
+      mysql.insert<person>({"purecpp", 6, 1 , std::chrono::system_clock::now()});
     }
     else {
       std::cout << "connect fail" << std::endl;

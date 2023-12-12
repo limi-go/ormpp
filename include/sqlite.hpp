@@ -416,6 +416,10 @@ class sqlite {
       return SQLITE_OK ==
              sqlite3_bind_text(stmt_, i, value, sizeof(U), nullptr);
     }
+    else if constexpr (std::is_same_v<std::chrono::system_clock::time_point, U>) {
+        auto duration  = std::chrono::duration_cast<std::chrono::microseconds>(value.time_since_epoch()).count();
+        return SQLITE_OK == sqlite3_bind_int64(stmt_, i, duration);
+    }
     else {
       static_assert(!sizeof(U), "this type has not supported yet");
     }
@@ -456,6 +460,10 @@ class sqlite {
     }
     else if constexpr (is_char_array_v<U>) {
       memcpy(value, sqlite3_column_text(stmt_, i), sizeof(U));
+    }
+    else if constexpr (std::is_same_v<std::chrono::system_clock::time_point, U>) {
+        auto seconds_since_epoch = sqlite3_column_int64(stmt_, i);
+        value = std::chrono::system_clock::time_point(std::chrono::duration_cast<std::chrono::system_clock::duration>(std::chrono::microseconds(seconds_since_epoch)));
     }
     else {
       static_assert(!sizeof(U), "this type has not supported yet");

@@ -136,7 +136,8 @@ class mysql {
   int get_last_affect_rows() { return (int)mysql_affected_rows(con_); }
 
   template <typename T>
-  constexpr void set_param_bind(std::vector<MYSQL_BIND> &param_binds,
+  constexpr void set_param_bind(std::vector<MYSQL_BIND> &param_binds, 
+                                std::vector<std::shared_ptr<MYSQL_TIME>>& tmpTimes,
                                 T &&value) {
     MYSQL_BIND param = {};
 
@@ -168,6 +169,21 @@ class mysql {
       param.buffer_type = MYSQL_TYPE_BLOB;
       param.buffer = (void *)(value.data());
       param.buffer_length = (unsigned long)value.size();
+    }
+    else if constexpr (std::is_same_v<std::chrono::system_clock::time_point, U>) {
+        param.buffer_type = MYSQL_TYPE_DATETIME;
+        tmpTimes.push_back(std::make_shared<MYSQL_TIME>());
+        auto tm = std::chrono::system_clock::to_time_t(value);
+        auto local_time = std::localtime(&tm);
+        tmpTimes.back()->time_type = MYSQL_TIMESTAMP_DATETIME;
+        tmpTimes.back()->year = local_time->tm_year + 1900;
+        tmpTimes.back()->month = local_time->tm_mon + 1;
+        tmpTimes.back()->day = local_time->tm_mday;
+        tmpTimes.back()->hour = local_time->tm_hour;
+        tmpTimes.back()->minute = local_time->tm_min;
+        tmpTimes.back()->second = local_time->tm_sec;
+        tmpTimes.back()->second_part = (std::chrono::duration_cast<std::chrono::microseconds>(value.time_since_epoch()) % 1000000).count();
+        param.buffer = (char*)tmpTimes.back().get();
     }
     else {
       static_assert(!sizeof(U), "this type has not supported yet");
@@ -208,6 +224,13 @@ class mysql {
       param_bind.buffer = &(mp.rbegin()->second[0]);
       param_bind.buffer_length = 65536;
     }
+    else if constexpr (std::is_same_v<std::chrono::system_clock::time_point, U>) {
+        param_bind.buffer_type = MYSQL_TYPE_DATETIME;
+        std::vector<char> tmp(sizeof(MYSQL_TIME), 0);
+        mp.emplace(i, std::move(tmp));
+        param_bind.buffer = &(mp.rbegin()->second[0]);
+        param_bind.buffer_length = sizeof(MYSQL_TIME);
+    }
     else {
       static_assert(!sizeof(U), "this type has not supported yet");
     }
@@ -242,6 +265,20 @@ class mysql {
     else if constexpr (std::is_same_v<blob, U>) {
       auto &vec = mp[i];
       value = blob(vec.data(), vec.data() + get_blob_len(i));
+    }
+    else if constexpr (std::is_same_v<std::chrono::system_clock::time_point, U>) {
+        auto& vec = mp[i];
+        MYSQL_TIME ts;
+        memcpy((void*)&ts, vec.data(), vec.size());
+        std::tm timeInfo{};
+        timeInfo.tm_year = ts.year - 1900;
+        timeInfo.tm_mon = ts.month - 1;
+        timeInfo.tm_mday = ts.day;
+        timeInfo.tm_hour = ts.hour;
+        timeInfo.tm_min = ts.minute;
+        timeInfo.tm_sec = ts.second;
+        value = std::chrono::system_clock::from_time_t(std::mktime(&timeInfo));
+        value += std::chrono::microseconds(ts.second_part);
     }
   }
 
@@ -588,13 +625,13 @@ class mysql {
   int stmt_execute(bool update, const T &t) {
     reset_error();
     std::vector<MYSQL_BIND> param_binds;
-
-    iguana::for_each(t, [&t, &param_binds, update, this](auto item, auto i) {
+    std::vector<std::shared_ptr<MYSQL_TIME>> tmpTimes;
+    iguana::for_each(t, [&t, &param_binds,&tmpTimes, update, this](auto item, auto i) {
       if (is_auto_key(iguana::get_name<T>(), iguana::get_name<T>(i).data()) &&
           !update) {
         return;
       }
-      set_param_bind(param_binds, t.*item);
+      set_param_bind(param_binds, tmpTimes,t.*item);
     });
 
     if (mysql_stmt_bind_param(stmt_, &param_binds[0])) {
